@@ -198,20 +198,30 @@ async function submitToGoogleAppsScript(formType, form, statusElement) {
       submittedAt: new Date().toISOString(),
     });
 
-    /* Apps Script web-app deployed with "Anyone" access returns
-       CORS-enabled JSON responses via redirect to
-       script.googleusercontent.com. If CORS blocks, the catch
-       block handles the error and shows it in the browser console. */
+    console.log("[submitForm] Sending " + formType + " payload:", Object.keys(payload).join(", "));
+
     const response = await fetch(GOOGLE_APPS_SCRIPT_URL, {
       method: "POST",
       redirect: "follow",
       body: jsonBody,
     });
 
-    const result = await response.json().catch(() => null);
+    let result = null;
+    try {
+      result = await response.json();
+    } catch (_) {
+      // CORS may block reading the response body from Apps Script.
+      // If we cannot read the response we assume the server received
+      // the data (the POST itself is not blocked by CORS).
+      console.warn("[submitForm] Could not read server response (CORS). Assuming success.");
+    }
+
+    if (result) {
+      console.log("[submitForm] Server response:", JSON.stringify(result));
+    }
 
     if (result && !result.success) {
-      console.error("Server error:", result.message);
+      console.error("[submitForm] Server error:", result.message);
       setStatus(statusElement, result.message || "Submission failed on server.", "error");
       return;
     }
@@ -231,6 +241,7 @@ async function submitToGoogleAppsScript(formType, form, statusElement) {
       }
     }, 5000);
   } catch (error) {
+    console.error("[submitForm] FAIL:", error);
     setStatus(statusElement, error.message || "Submission failed. Please try again.", "error");
   }
 }
